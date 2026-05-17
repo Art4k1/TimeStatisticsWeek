@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Недельный трекер времени</title>
+  <style>
+    /* ─── CSS-змінні / токени ─── */
+    :root {
+      --bg:          #0d0f14;
+      --surface:     #151820;
+      --surface2:    #1c2030;
+      --border:      #252a3a;
+      --accent:      #4f8ef7;
+      --accent-glow: rgba(79,142,247,.25);
+      --text:        #e8eaf0;
+      --muted:       #6b7494;
+      --danger:      #f05454;
+      --warning:     #f0a354;
+      --success:     #54c98f;
+      --radius:      14px;
+      --font-mono:   'Courier New', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+      min-height: 100vh;
+      /* тонка сітка як фон */
+      background-image:
+        linear-gradient(rgba(79,142,247,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,142,247,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* ─── Шапка ─── */
+    header {
+      text-align: center;
+      padding: 48px 20px 24px;
+      position: relative;
+    }
+    header::after {
+      content: '';
+      display: block;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin-top: 24px;
+    }
+    header h1 {
+      font-size: clamp(1.6rem, 4vw, 2.6rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #e8eaf0 30%, #4f8ef7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header p {
+      color: var(--muted);
+      margin-top: 8px;
+      font-size: .95rem;
+      letter-spacing: .04em;
+    }
+
+    /* ─── Основний контейнер ─── */
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 16px 64px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 680px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* ─── Картка ─── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      animation: fadeUp .4s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .card-title {
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    /* ─── Форма додавання ─── */
+    .form-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .form-row input {
+      flex: 1 1 140px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: .95rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .form-row input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .form-row input[type="number"] { flex: 0 0 90px; }
+    .form-row input::placeholder { color: var(--muted); }
+
+    /* ─── Кнопки ─── */
+    .btn {
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .88rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      padding: 10px 18px;
+      transition: filter .2s, transform .15s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { filter: brightness(1.15); }
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+    .btn-danger { background: rgba(240,84,84,.15); color: var(--danger); border: 1px solid rgba(240,84,84,.3); }
+    .btn-danger:hover { background: rgba(240,84,84,.25); }
+    .btn-save  { background: rgba(84,201,143,.15); color: var(--success); border: 1px solid rgba(84,201,143,.3); }
+    .btn-save:hover { background: rgba(84,201,143,.25); }
+
+    /* ─── Лічильник годин ─── */
+    .hours-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      font-size: .9rem;
+    }
+    .hours-summary .total { font-size: 1.05rem; font-weight: 700; }
+    .hours-summary .total span { color: var(--accent); }
+    .hours-bar-wrap {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .hours-bar {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--accent), #8ab4ff);
+      transition: width .5s ease;
+    }
+    .hours-bar.over { background: linear-gradient(90deg, var(--danger), #ff8a8a); }
+
+    /* ─── Список активностей ─── */
+    #activity-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color .2s, background .2s;
+      animation: fadeUp .3s ease both;
+    }
+    .activity-item:hover { border-color: var(--accent); }
+    .activity-item.warn-red { border-color: rgba(240,84,84,.5); background: rgba(240,84,84,.07); }
+
+    /* кольоровий кружок */
+    .dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .activity-name { flex: 1; font-size: .93rem; font-weight: 500; }
+    .activity-meta { font-size: .82rem; color: var(--muted); font-family: var(--font-mono); white-space: nowrap; }
+    .activity-meta .pct { color: var(--text); font-weight: 600; margin-left: 6px; }
+    .activity-meta .pct.danger { color: var(--danger); }
+    .item-actions { display: flex; gap: 6px; }
+    .icon-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); font-size: 1rem;
+      padding: 4px 6px; border-radius: 6px;
+      transition: color .2s, background .2s;
+      line-height: 1;
+    }
+    .icon-btn:hover { color: var(--text); background: var(--border); }
+
+    /* inline-редагування */
+    .edit-row { display: none; align-items: center; gap: 8px; width: 100%; margin-top: 10px; flex-wrap: wrap; }
+    .edit-row.active { display: flex; animation: fadeUp .2s ease both; }
+    .edit-row input {
+      background: var(--bg);
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 6px 10px;
+      font-size: .88rem;
+      outline: none;
+    }
+    .edit-row input[type="number"] { width: 80px; }
+    .edit-row input[type="text"]   { flex: 1; min-width: 100px; }
+
+    /* ─── Кругова діаграма ─── */
+    .chart-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    #pie-canvas {
+      width: 100%;
+      max-width: 260px;
+      aspect-ratio: 1;
+      cursor: crosshair;
+    }
+    /* легенда під діаграмою */
+    #legend { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: center; }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: .82rem; color: var(--muted); cursor: default;
+    }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* tooltip для canvas */
+    #pie-tooltip {
+      position: fixed;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: .82rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s;
+      z-index: 100;
+      white-space: nowrap;
+    }
+
+    /* ─── Попередження ─── */
+    #warning-box {
+      display: none;
+      grid-column: 1 / -1;
+      background: rgba(240,84,84,.1);
+      border: 1px solid rgba(240,84,84,.4);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      font-size: .9rem;
+      color: var(--danger);
+      animation: fadeUp .3s ease both;
+    }
+    #warning-box strong { display: block; margin-bottom: 4px; font-size: 1rem; }
+
+    /* ─── Кнопки дій (демо / скинути) ─── */
+    .action-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* ─── Порожній стан ─── */
+    .empty-state {
+      text-align: center;
+      padding: 32px 0;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+    .empty-state span { font-size: 2rem; display: block; margin-bottom: 8px; }
+
+    /* ─── Scrollbar ─── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⏱ Недельный трекер времени</h1>
+  <p>168 часов в неделю — куда они уходят?</p>
+</header>
+
+<main>
+
+  <!-- ── Панель дій ── -->
+  <div class="action-bar">
+    <button class="btn btn-ghost" onclick="loadDemo()">✦ Заполнить пример</button>
+    <button class="btn btn-danger" onclick="resetAll()">✕ Сбросить всё</button>
+  </div>
+
+  <!-- ── Попередження ── -->
+  <div id="warning-box">
+    <strong>⚠ Внимание: слишком много «бесполезного» времени</strong>
+    <span id="warning-text"></span>
+  </div>
+
+  <!-- ── Ліва колонка: форма + список ── -->
+  <div>
+    <!-- Форма -->
+    <div class="card" style="margin-bottom:16px; animation-delay:.05s">
+      <div class="card-title">Новая активность</div>
+      <div class="form-row">
+        <input type="text"   id="inp-name"  placeholder="Название (напр. Сон)"  maxlength="40" />
+        <input type="number" id="inp-hours" placeholder="ч/нед" min="0" max="168" step="0.5" />
+        <button class="btn btn-primary" onclick="addActivity()">+ Добавить</button>
+      </div>
+      <!-- Счётчик -->
+      <div class="hours-summary">
+        <span>Использовано:</span>
+        <span class="total"><span id="used-hours">0</span> / 168 ч</span>
+      </div>
+      <div class="hours-bar-wrap">
+        <div class="hours-bar" id="hours-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Список -->
+    <div class="card" style="animation-delay:.1s">
+      <div class="card-title">Активности</div>
+      <ul id="activity-list"></ul>
+      <div class="empty-state" id="empty-msg">
+        <span>🕰</span>Добавьте первую активность или нажмите «Заполнить пример»
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Права колонка: діаграма ── -->
+  <div class="card" style="animation-delay:.15s">
+    <div class="card-title">Распределение времени</div>
+    <div class="chart-wrap">
+      <canvas id="pie-canvas" width="520" height="520"
+              onmousemove="handlePieMove(event)"
+              onmouseleave="hidePieTooltip()">
+      </canvas>
+      <div id="legend"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Tooltip для hover на діаграмі -->
+<div id="pie-tooltip"></div>
+
+<script>
+/* ════════════════════════════════════════════
+   КОНСТАНТИ ТА СТАН
+════════════════════════════════════════════ */
+const TOTAL_HOURS = 168;
+
+// Категорії, що вважаються "марним часом" — перевіряємо за ключовими словами
+const WASTE_KEYWORDS = ['игры', 'игра', 'соцсети', 'соц.сети', 'youtube', 'ютуб', 'tiktok', 'тикток'];
+
+// Палітра кольорів для секторів
+const PALETTE = [
+  '#4f8ef7','#54c98f','#f7a84f','#f05454','#b46ef7',
+  '#4ff7e0','#f7f04f','#f74fa8','#8ef74f','#f7714f',
+  '#4f9ff7','#f74f4f','#54f7b4','#d4f74f','#7f4ff7',
+];
+
+// Стан додатку
+let activities = [];   // [{id, name, hours, color}]
+let editingId  = null; // id активності, що зараз редагується
+
+// Для hover на canvas — зберігаємо прораховані сектори
+let pieSectors = [];   // [{startAngle, endAngle, color, name, hours, pct}]
+
+/* ════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  load();
+  render();
+
+  // Enter у полях форми — додає активність
+  ['inp-name','inp-hours'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') addActivity();
+    });
+  });
+});
+
+/* ════════════════════════════════════════════
+   ЗБЕРЕЖЕННЯ / ЗАВАНТАЖЕННЯ
+════════════════════════════════════════════ */
+function save() {
+  localStorage.setItem('wtt_activities', JSON.stringify(activities));
+}
+function load() {
+  const raw = localStorage.getItem('wtt_activities');
+  if (raw) {
+    try { activities = JSON.parse(raw); } catch { activities = []; }
+  }
+}
+
+/* ════════════════════════════════════════════
+   CRUD
+════════════════════════════════════════════ */
+function addActivity() {
+  const nameEl  = document.getElementById('inp-name');
+  const hoursEl = document.getElementById('inp-hours');
+  const name  = nameEl.value.trim();
+  const hours = parseFloat(hoursEl.value);
+
+  if (!name)            { shake(nameEl);  return; }
+  if (isNaN(hours) || hours <= 0) { shake(hoursEl); return; }
+
+  const color = PALETTE[activities.length % PALETTE.length];
+  activities.push({ id: Date.now(), name, hours, color });
+
+  nameEl.value  = '';
+  hoursEl.value = '';
+  nameEl.focus();
+  save();
+  render();
+}
+
+function deleteActivity(id) {
+  activities = activities.filter(a => a.id !== id);
+  if (editingId === id) editingId = null;
+  save();
+  render();
+}
+
+function startEdit(id) {
+  editingId = (editingId === id) ? null : id; // toggle
+  render();
+}
+
+function saveEdit(id) {
+  const nameEl  = document.getElementById(`edit-name-${id}`);
+  const hoursEl = document.getElementById(`edit-hours-${id}`);
+  const name  = nameEl.value.trim();
+  const hours = parseFloat(hoursEl.value);
+
+  if (!name || isNaN(hours) || hours <= 0) return;
+
+  const act = activities.find(a => a.id === id);
+  if (act) { act.name = name; act.hours = hours; }
+
+  editingId = null;
+  save();
+  render();
+}
+
+/* ════════════════════════════════════════════
+   ДЕМО / СКИДАННЯ
+════════════════════════════════════════════ */
+function loadDemo() {
+  activities = [
+    { id: 1, name: 'Сон',        hours: 49, color: PALETTE[0] },
+    { id: 2, name: 'Работа',     hours: 40, color: PALETTE[1] },
+    { id: 3, name: 'Учёба',      hours: 14, color: PALETTE[2] },
+    { id: 4, name: 'Игры',       hours: 20, color: PALETTE[3] },
+    { id: 5, name: 'Соцсети',    hours: 18, color: PALETTE[4] },
+    { id: 6, name: 'Спорт',      hours:  7, color: PALETTE[5] },
+    { id: 7, name: 'Еда',        hours:  7, color: PALETTE[6] },
+    { id: 8, name: 'Семья',      hours:  5, color: PALETTE[7] },
+  ];
+  editingId = null;
+  save();
+  render();
+}
+
+function resetAll() {
+  if (!confirm('Сбросить все активности?')) return;
+  activities = [];
+  editingId  = null;
+  save();
+  render();
+}
+
+/* ════════════════════════════════════════════
+   SHAKE-АНІМАЦІЯ (валідація)
+════════════════════════════════════════════ */
+function shake(el) {
+  el.style.animation = 'none';
+  // Форсуємо reflow, щоб CSS-анімація спрацювала повторно
+  void el.offsetWidth;
+  el.style.animation = 'shake .3s ease';
+}
+
+// Додаємо @keyframes shake до стилів динамічно
+(function() {
+  const s = document.createElement('style');
+  s.textContent = `@keyframes shake {
+    0%,100%{transform:translateX(0)}
+    25%{transform:translateX(-6px)}
+    75%{transform:translateX(6px)}
+  }`;
+  document.head.appendChild(s);
+})();
+
+/* ════════════════════════════════════════════
+   ПІДРАХУНОК
+════════════════════════════════════════════ */
+function totalHours() {
+  return activities.reduce((s, a) => s + a.hours, 0);
+}
+
+// Знаходить відсоток «марного часу» (ігри + соцмережі)
+function wastePercent() {
+  const wasteHours = activities
+    .filter(a => WASTE_KEYWORDS.some(k => a.name.toLowerCase().includes(k)))
+    .reduce((s, a) => s + a.hours, 0);
+  return (wasteHours / TOTAL_HOURS) * 100;
+}
+
+/* ════════════════════════════════════════════
+   ГОЛОВНИЙ РЕНДЕР
+════════════════════════════════════════════ */
+function render() {
+  renderSummary();
+  renderList();
+  renderPie();
+  renderWarning();
+}
+
+/* ── Лічильник годин ── */
+function renderSummary() {
+  const used   = totalHours();
+  const pct    = Math.min((used / TOTAL_HOURS) * 100, 100);
+  const bar    = document.getElementById('hours-bar');
+  const usedEl = document.getElementById('used-hours');
+
+  usedEl.textContent = used % 1 === 0 ? used : used.toFixed(1);
+  bar.style.width    = pct + '%';
+  bar.classList.toggle('over', used > TOTAL_HOURS);
+}
+
+/* ── Список активностей ── */
+function renderList() {
+  const list    = document.getElementById('activity-list');
+  const emptyEl = document.getElementById('empty-msg');
+  const used    = totalHours();
+
+  list.innerHTML = '';
+
+  if (activities.length === 0) {
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  activities.forEach(act => {
+    const pct      = used > 0 ? (act.hours / TOTAL_HOURS) * 100 : 0;
+    const pctOfAll = used > 0 ? (act.hours / used) * 100 : 0;
+    const isHigh   = pct > 40; // > 40% від тижня
+
+    const li = document.createElement('li');
+    li.className = 'activity-item' + (isHigh ? ' warn-red' : '');
+    li.dataset.id = act.id;
+
+    li.innerHTML = `
+      <span class="dot" style="background:${act.color}"></span>
+      <span class="activity-name">${escHtml(act.name)}</span>
+      <span class="activity-meta">
+        ${act.hours % 1 === 0 ? act.hours : act.hours.toFixed(1)} ч
+        <span class="pct ${isHigh ? 'danger' : ''}"> ${pct.toFixed(1)}%</span>
+      </span>
+      <div class="item-actions">
+        <button class="icon-btn" title="Редактировать" onclick="startEdit(${act.id})">✎</button>
+        <button class="icon-btn" title="Удалить"       onclick="deleteActivity(${act.id})">✕</button>
+      </div>
+      <!-- Строка inline-редактирования -->
+      <div class="edit-row ${editingId === act.id ? 'active' : ''}" id="edit-row-${act.id}">
+        <input type="text"   id="edit-name-${act.id}"  value="${escHtml(act.name)}" maxlength="40" />
+        <input type="number" id="edit-hours-${act.id}" value="${act.hours}" min="0" max="168" step="0.5" style="width:80px"/>
+        <button class="btn btn-save"   onclick="saveEdit(${act.id})">✓ Сохранить</button>
+        <button class="btn btn-ghost"  onclick="startEdit(${act.id})">Отмена</button>
+      </div>
+    `;
+
+    // Enter у полі редагування — зберігає
+    li.querySelectorAll('.edit-row input').forEach(inp => {
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveEdit(act.id); });
+    });
+
+    list.appendChild(li);
+  });
+}
+
+/* ════════════════════════════════════════════
+   КРУГОВА ДІАГРАМА (Canvas API, без бібліотек)
+════════════════════════════════════════════ */
+function renderPie() {
+  const canvas = document.getElementById('pie-canvas');
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(W, H) / 2 - 20;  // зовнішній радіус
+  const r = R * 0.45;                  // внутрішній (donut)
+
+  ctx.clearRect(0, 0, W, H);
+  pieSectors = [];
+
+  const used = totalHours();
+
+  // Порожній стан — сіре кільце
+  if (activities.length === 0 || used === 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+    ctx.fillStyle = '#252a3a';
+    ctx.fill('evenodd');
+
+    ctx.fillStyle = '#6b7494';
+    ctx.font = `bold ${W * 0.07}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Нет данных', cx, cy);
+
+    document.getElementById('legend').innerHTML = '';
+    return;
+  }
+
+  /* ── Малюємо сектори ── */
+  let startAngle = -Math.PI / 2; // починаємо з верхівки
+
+  activities.forEach(act => {
+    const fraction   = act.hours / used;
+    const sweepAngle = fraction * Math.PI * 2;
+    const endAngle   = startAngle + sweepAngle;
+    const pct        = (act.hours / TOTAL_HOURS) * 100;
+
+    pieSectors.push({ startAngle, endAngle, color: act.color, name: act.name, hours: act.hours, pct });
+
+    // Сектор (donut-форма через evenodd)
+    ctx.beginPath();
+    ctx.moveTo(
+      cx + R * Math.cos(startAngle),
+      cy + R * Math.sin(startAngle)
+    );
+    ctx.arc(cx, cy, R, startAngle, endAngle);
+    ctx.arc(cx, cy, r, endAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = act.color;
+    ctx.fill();
+
+    // Тонкий зазор між секторами (малюємо поверх)
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, R + 2, startAngle, startAngle);
+    ctx.strokeStyle = '#0d0f14';
+    ctx.lineWidth   = 3;
+    ctx.stroke();
+
+    startAngle = endAngle;
+  });
+
+  /* ── Доданий час (залишок до 168 год) ── */
+  const remaining = TOTAL_HOURS - used;
+  if (remaining > 0) {
+    const sweepAngle = (remaining / used) * Math.PI * 2 * (used / TOTAL_HOURS);
+    // Показуємо залишок як темний сектор (не рахуємо в pieSectors для tooltip)
+    const remFrac = remaining / (used + remaining);
+
+    // Перераховуємо: малюємо все з урахуванням TOTAL_HOURS
+    // Перемалюємо правильно — від загального
+    ctx.clearRect(0, 0, W, H);
+    pieSectors = [];
+
+    startAngle = -Math.PI / 2;
+    activities.forEach(act => {
+      const fraction   = act.hours / TOTAL_HOURS;
+      const sweep      = fraction * Math.PI * 2;
+      const end        = startAngle + sweep;
+      const pct        = fraction * 100;
+
+      pieSectors.push({ startAngle, endAngle: end, color: act.color, name: act.name, hours: act.hours, pct });
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, startAngle, end);
+      ctx.arc(cx, cy, r, end, startAngle, true);
+      ctx.closePath();
+      ctx.fillStyle = act.color;
+      ctx.fill();
+
+      startAngle = end;
+    });
+
+    // Залишок — темний сектор
+    const remFraction = remaining / TOTAL_HOURS;
+    const remSweep    = remFraction * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, startAngle, startAngle + remSweep);
+    ctx.arc(cx, cy, r, startAngle + remSweep, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = '#252a3a';
+    ctx.fill();
+
+    // Залишок теж додаємо до pieSectors для tooltip
+    pieSectors.push({
+      startAngle, endAngle: startAngle + remSweep,
+      color: '#252a3a', name: 'Свободное время', hours: remaining, pct: remFraction * 100,
+    });
+
+  } else {
+    // Якщо 168+ — перемалюємо з урахуванням TOTAL_HOURS
+    ctx.clearRect(0, 0, W, H);
+    pieSectors = [];
+    startAngle = -Math.PI / 2;
+
+    activities.forEach(act => {
+      const fraction = act.hours / used; // ділимо на used, якщо > 168
+      const sweep    = fraction * Math.PI * 2;
+      const end      = startAngle + sweep;
+      const pct      = (act.hours / TOTAL_HOURS) * 100;
+
+      pieSectors.push({ startAngle, endAngle: end, color: act.color, name: act.name, hours: act.hours, pct });
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, startAngle, end);
+      ctx.arc(cx, cy, r, end, startAngle, true);
+      ctx.closePath();
+      ctx.fillStyle = act.color;
+      ctx.fill();
+
+      startAngle = end;
+    });
+  }
+
+  /* ── Текст у центрі ── */
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle    = '#e8eaf0';
+  ctx.font         = `bold ${W * 0.09}px 'Segoe UI', sans-serif`;
+  ctx.fillText(used > 0 ? (used % 1 === 0 ? used : used.toFixed(1)) : '0', cx, cy - W * 0.04);
+  ctx.fillStyle = '#6b7494';
+  ctx.font      = `${W * 0.055}px 'Segoe UI', sans-serif`;
+  ctx.fillText('ч/нед', cx, cy + W * 0.055);
+
+  /* ── Легенда ── */
+  const legend = document.getElementById('legend');
+  legend.innerHTML = '';
+  pieSectors.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `
+      <span class="legend-dot" style="background:${s.color}"></span>
+      ${escHtml(s.name)} <span style="color:#e8eaf0;font-weight:600;margin-left:4px">${s.pct.toFixed(1)}%</span>
+    `;
+    legend.appendChild(item);
+  });
+}
+
+/* ════════════════════════════════════════════
+   HOVER НА PIE CHART
+════════════════════════════════════════════ */
+function handlePieMove(e) {
+  const canvas  = document.getElementById('pie-canvas');
+  const tooltip = document.getElementById('pie-tooltip');
+  const rect    = canvas.getBoundingClientRect();
+
+  // Масштаб: canvas може бути меншим ніж реальний розмір
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top)  * scaleY;
+
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const R  = Math.min(canvas.width, canvas.height) / 2 - 20;
+  const r  = R * 0.45;
+
+  const dx   = mx - cx, dy = my - cy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  // Перевіряємо, чи курсор всередині donut-кільця
+  if (dist < r || dist > R) {
+    hidePieTooltip();
+    return;
+  }
+
+  // Кут від курсора
+  let angle = Math.atan2(dy, dx);
+  // Нормалізуємо відносно початку (-π/2)
+  angle = angle + Math.PI / 2;
+  if (angle < 0) angle += Math.PI * 2;
+
+  // Знаходимо сектор
+  const sector = pieSectors.find(s => {
+    let start = s.startAngle + Math.PI / 2;
+    let end   = s.endAngle   + Math.PI / 2;
+    if (start < 0) start += Math.PI * 2;
+    if (end   < 0) end   += Math.PI * 2;
+    if (start <= end) return angle >= start && angle <= end;
+    // Сектор перетинає 0
+    return angle >= start || angle <= end;
+  });
+
+  if (sector) {
+    tooltip.style.opacity = '1';
+    tooltip.style.left    = (e.clientX + 14) + 'px';
+    tooltip.style.top     = (e.clientY - 10) + 'px';
+    tooltip.innerHTML     =
+      `<span style="color:${sector.color}">●</span> <strong>${escHtml(sector.name)}</strong>` +
+      ` — ${sector.hours % 1 === 0 ? sector.hours : sector.hours.toFixed(1)} ч ` +
+      `<span style="color:${sector.color}">(${sector.pct.toFixed(1)}%)</span>`;
+  } else {
+    hidePieTooltip();
+  }
+}
+function hidePieTooltip() {
+  document.getElementById('pie-tooltip').style.opacity = '0';
+}
+
+/* ════════════════════════════════════════════
+   ПОПЕРЕДЖЕННЯ
+════════════════════════════════════════════ */
+function renderWarning() {
+  const box  = document.getElementById('warning-box');
+  const text = document.getElementById('warning-text');
+  const wp   = wastePercent();
+
+  if (wp > 50) {
+    box.style.display = 'block';
+    text.textContent  =
+      `Игры и соцсети занимают ${wp.toFixed(1)}% вашей недели (${(wp * TOTAL_HOURS / 100).toFixed(1)} ч). ` +
+      `Это больше половины всего вашего времени — стоит пересмотреть приоритеты.`;
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+/* ════════════════════════════════════════════
+   УТИЛІТИ
+════════════════════════════════════════════ */
+function escHtml(str) {
+  return str.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+</script>
+</body>
+</html>
